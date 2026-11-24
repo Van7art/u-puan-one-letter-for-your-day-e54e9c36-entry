@@ -40,10 +40,26 @@ const LETTER = "H";
 const WORD_BEHIND_IT = "hungover";
 
 // Validate the entry before writing anything: exactly one ASCII
-// capital letter, A to Z. Anything else fails loudly instead of
-// shipping an invalid entry.
-if (!/^[A-Z]$/.test(LETTER)) {
+// capital letter, A to Z, and exactly one byte when encoded as
+// UTF-8. Anything else fails loudly instead of shipping an
+// invalid entry.
+if (!/^[A-Z]$/.test(LETTER) || Buffer.byteLength(LETTER, "utf8") !== 1) {
   throw new Error(`invalid entry ${JSON.stringify(LETTER)}: must be one letter A-Z`);
+}
+
+// Verify the written entry by reading it back: the scorer's gate
+// fails silently on a wrong 1-byte file, so a bad write must throw
+// here instead of shipping. Checks both the byte length (exactly
+// one byte — a stray newline or multi-byte character must not slip
+// through) and the exact letter.
+function verifyEntry(expected: string): void {
+  const raw = readFileSync("/output/entry.txt");
+  const text = raw.toString("utf8");
+  if (raw.length !== 1 || text !== expected) {
+    throw new Error(
+      `entry mismatch: /output/entry.txt holds ${JSON.stringify(text)} (${raw.length} bytes), expected ${JSON.stringify(expected)} (1 byte)`,
+    );
+  }
 }
 
 // The grader's gate reads /output/entry.txt: UTF-8 text of exactly
@@ -53,12 +69,7 @@ mkdirSync("/output", { recursive: true });
 writeFileSync("/output/entry.txt", LETTER, "utf8");
 
 // Read the file back and prove what was written is exactly the entry.
-const written = readFileSync("/output/entry.txt", "utf8");
-if (written !== LETTER) {
-  throw new Error(
-    `entry mismatch: /output/entry.txt holds ${JSON.stringify(written)}, expected ${JSON.stringify(LETTER)}`,
-  );
-}
+verifyEntry(LETTER);
 
 // Print the entry and nothing else: one character, no newline, so
 // stdout carries exactly the entry too.
